@@ -8,7 +8,7 @@ L'objectif de cette expérience est de démontrer et de comparer les différents
 
 ### **2.1 Principe**
 
-Dans le modèle itérative, les clients seront servis un par un et dans l'ordre des connexions. Par conséquent, la réponse de la requête des clients seront bloqués par les précédents.
+Dans le modèle itératif, les clients seront servis un par un et dans l'ordre des connexions. Par conséquent, la réponse de la requête des clients seront bloqués par les précédents.
 
 ### **2.2 Démonstration**
 
