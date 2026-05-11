@@ -135,3 +135,51 @@ Pour 500 connexions poll() est préférable car son API est plus claire et il n'
 pas nécessaire de reconstruire le fd_set à chaque appel. Pour 10 000+ connexions
 la syscall recommandée est epoll (Linux) avec une complexité O(1) au lieu de
 O(n) pour select/poll, utilisé par nginx, Redis et Node.js.
+
+## Partie 5 — Daemon et syslog
+
+### Description
+Le serveur est transformé en daemon UNIX complet. Il tourne en arrière-plan
+même si le terminal est fermé. Toute l'activité est tracée via syslog dans
+/var/log/myserverd.log.
+
+### Séquence de daemonisation
+1. Premier fork : le père quitte, le fils continue
+2. setsid() : crée une nouvelle session sans terminal de contrôle
+3. Second fork : empêche toute réacquisition de terminal
+4. chdir("/") : évite de bloquer un système de fichiers monté
+5. umask(0) : contrôle total sur les permissions
+6. Redirection stdin/stdout/stderr vers /dev/null
+
+### Test effectué
+    tino@ubuntu:~/tcp-server$ ./tcp_server
+    tino@ubuntu:~/tcp-server$  (le terminal rend la main immédiatement)
+
+    tino@ubuntu:~$ echo "Bonjour daemon" | nc 127.0.0.1 9999
+    [Connexion #1] Echo : Bonjour daemon
+
+### Logs observés dans /var/log/myserverd.log
+    2026-05-11T11:02:01 ubuntu myserverd[9132]: Daemon démarré sur le port 9999
+    2026-05-11T11:03:08 ubuntu myserverd[9132]: Connexion acceptée de 127.0.0.1:33816
+    2026-05-11T11:03:08 ubuntu myserverd[9166]: Client traité (fd=5)
+
+### Configuration rsyslog
+Ligne ajoutée dans /etc/rsyslog.conf :
+    daemon.*    /var/log/myserverd.log
+
+### Niveaux syslog utilisés
+    LOG_INFO    : connexions normales
+    LOG_WARNING : erreurs récupérables (accept échoué)
+    LOG_ERR     : erreurs fatales (socket, bind, fork échoués)
+
+## Conclusion
+
+Pour un service en production nous choisirions epoll avec un pool de threads
+fixe comme le fait nginx. Le modèle fork pur est trop coûteux en mémoire sous
+forte charge, le modèle select est limité à 1024 connexions et le modèle
+threads pur sans pool peut saturer le système. La combinaison epoll et thread
+pool est le standard industriel actuel.
+
+## Auteurs
+Tino, Vahatra, Elvys
+Licence 3 Télécommunications — Systèmes & Réseaux
