@@ -4,13 +4,35 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <sys/mman.h>
 #include "server.h"
+
+static int *connexions_actives;
+
+static void sigchld_handler(int sig) {
+    (void)sig;
+    while (waitpid(-1, NULL, WNOHANG) > 0)
+        (*connexions_actives)--;
+}
 
 int main(void) {
     int listenfd, connfd;
     struct sockaddr_in srv;
     int conn_num = 0;
     int opt = 1;
+
+    connexions_actives = mmap(NULL, sizeof(int),
+        PROT_READ | PROT_WRITE,
+        MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    *connexions_actives = 0;
+
+    struct sigaction sa;
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGCHLD, &sa, NULL);
 
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
     if (listenfd < 0) { perror("socket"); exit(1); }
@@ -29,13 +51,24 @@ int main(void) {
         perror("listen"); exit(1);
     }
 
-    printf("Serveur itératif démarré sur le port %d\n", PORT);
+    printf("Serveur fork démarré sur le port %d\n", PORT);
 
     while (1) {
         connfd = accept(listenfd, NULL, NULL);
         if (connfd < 0) { perror("accept"); continue; }
-        handle_client_iter(connfd, ++conn_num);
+
+        pid_t pid = fork();
+        if (pid < 0) { perror("fork"); close(connfd); continue; }
+
+        if (pid == 0) {
+            close(listenfd);
+            (*connexions_actives)++;
+            handle_client_iter(connfd, ++conn_num);
+            close(connfd);
+            exit(0);
+        }
         close(connfd);
+        printf("Connexions actives : %d\n", *connexions_actives);
     }
     return 0;
 }
