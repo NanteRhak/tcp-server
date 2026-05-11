@@ -58,3 +58,43 @@ Le père (PID 19863) reste en écoute en permanence. Les fils ont des PIDs
 clients arrivent dans le désordre ce qui prouve qu'ils sont traités en
 parallèle. La solution IPC choisie est mmap car elle est partagée entre
 le père et tous les fils avant fork(), plus rapide qu'un fichier temporaire.
+
+## Partie 3 — Serveur multi-threadé avec pthreads
+
+### Description
+Serveur concurrent basé sur pthreads. Chaque connexion cliente est prise en
+charge par un thread indépendant. Un mutex protège le compteur connexions_actives.
+Un pool de MAX_THREADS=16 refuse les connexions si saturé. pthread_detach()
+libère automatiquement les ressources du thread à sa fin.
+
+### Pourquoi malloc pour passer connfd au thread
+Il est interdit de passer &connfd directement car connfd est une variable locale
+de la boucle principale. À la prochaine itération connfd est réécrit avant que
+le thread ait eu le temps de le lire, créant une race condition. La solution
+est d'allouer une copie avec malloc() pour chaque thread.
+
+### Test avec 8 clients simultanés
+    tino@ubuntu:~$ for i in $(seq 1 8); do
+        (echo "Client $i : bonjour" | nc -q 1 127.0.0.1 9999) &
+    done
+    wait
+    echo 'Tous les clients ont terminé'
+    [Connexion #1] Echo : Client 3 : bonjour
+    [Connexion #4] Echo : Client 6 : bonjour
+    [Connexion #3] Echo : Client 1 : bonjour
+    [Connexion #2] Echo : Client 2 : bonjour
+    [Connexion #5] Echo : Client 7 : bonjour
+    [Connexion #6] Echo : Client 8 : bonjour
+    [Connexion #7] Echo : Client 4 : bonjour
+    [Connexion #8] Echo : Client 5 : bonjour
+    Tous les clients ont terminé
+
+### Comparaison mémoire fork vs threads
+    Version fork()   : VmRSS = 1476 kB
+    Version threads  : VmRSS = 1724 kB
+
+### Analyse
+Les numéros de connexion sont différents (#1, #2, #3...) grâce au mutex qui
+protège le compteur. La version fork consomme moins de mémoire au repos mais
+sous charge chaque fils duplique toute la mémoire du père. Les threads partagent
+la mémoire donc sont plus efficaces sous forte charge.
