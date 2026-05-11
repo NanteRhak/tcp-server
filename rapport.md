@@ -2,7 +2,7 @@
 
 ## **1. Objectif**
 
-L'objectif de cette expérience est de démontrer et de comparer les différents modèles de serveurs TCP en C. Dans ce rapport, le modèle itérative, concurrent avec fork, pthreads, et les multiplexage I/O seront particulièrement discutés. Le serveur sera exécuté en tant que daemon et les logs seront gérés en utilisant syslog.
+L'objectif de cette expérience est de démontrer et de comparer les différents modèles de serveurs TCP en C. Dans ce rapport, le modèle itératif, concurrent avec fork, pthreads, et les multiplexage I/O seront particulièrement discutés. Le serveur sera exécuté en tant que daemon et les logs seront gérés en utilisant syslog.
 
 ## **2. Modèle itérative**
 
