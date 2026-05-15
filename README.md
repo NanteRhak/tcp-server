@@ -1,0 +1,72 @@
+# TCP Server UNIX
+**Auteurs :**
+- FIONONANA RANDRY Tino
+- RAFANOMEZANTSOA Holinirina Vahatriniaina
+- RAKOTOVAO Nantenaina Elvys
+
+**Licence 3 Télécommunications**
+
+## Partie 1 — Serveur TCP itératif
+
+### Description
+Serveur TCP minimaliste en mode itératif. Il traite un client à la fois.
+La socket est créée avec socket(), configurée avec SO_REUSEADDR, bind() sur
+le port 9999 et listen() avec un backlog de 10.
+
+### Compilation et lancement
+    make
+    ./tcp_server
+
+### Test 1 — Echo basique
+    $ echo "Bonjour" | nc 127.0.0.1 9999
+    [Connexion #1] Echo : Bonjour
+
+### Test 2 — Blocage itératif
+    Terminal 2 : nc 127.0.0.1 9999  (connecté mais silencieux)
+    Terminal 3 : echo "Hello" | nc 127.0.0.1 9999  (bloqué, pas de réponse)
+    Quand Terminal 2 fait Ctrl+C :
+    Terminal 3 reçoit immédiatement : [Connexion #2] Echo : Hello
+
+### Résultat
+Le terminal 3 est bloqué tant que le terminal 2 occupe le serveur.
+Le serveur est bloqué sur read() du client 1 et ne peut pas accepter
+de nouvelle connexion. Le client 2 reste dans la file d'attente du
+noyau (backlog).
+
+## Partie 2 — Serveur concurrent avec fork()
+
+### Description
+Serveur concurrent basé sur fork(). Chaque connexion cliente est prise en
+charge par un processus fils indépendant. Un gestionnaire SIGCHLD avec
+waitpid(-1, NULL, WNOHANG) évite les processus zombies. Le compteur de
+connexions actives est partagé via mmap MAP_SHARED | MAP_ANONYMOUS.
+
+### Test fork + pstree
+    $ for i in $(seq 1 8); do
+        (echo "Client $i : bonjour" | nc -q 1 127.0.0.1 9999) &
+      done
+      wait
+      pstree -p $(pgrep tcp_server)
+    [Connexion #1] Echo : Client 2 : bonjour
+    [Connexion #1] Echo : Client 4 : bonjour
+    [Connexion #1] Echo : Client 1 : bonjour
+    [Connexion #1] Echo : Client 7 : bonjour
+    [Connexion #1] Echo : Client 3 : bonjour
+    [Connexion #1] Echo : Client 6 : bonjour
+    [Connexion #1] Echo : Client 5 : bonjour
+    [Connexion #1] Echo : Client 8 : bonjour
+    tcp_server(9094)
+
+### Test IPC mémoire
+    $ ps -C tcp_server -o rss=
+    1660 KB
+
+### Test anti-zombies
+    $ ps aux | grep Z
+    tino  5671  Z  [sd_espeak-ng-mb] <defunct>  (processus système, pas lié au serveur)
+    Aucun zombie lié à tcp_server — SIGCHLD fonctionne correctement.
+
+### Résultat
+Les 8 clients sont servis en parallèle dans le désordre ce qui prouve
+le parallélisme. Le père (PID 9094) reste en écoute. Les fils se terminent
+rapidement. Aucun zombie détecté. Mémoire : 1660 KB.

@@ -1,4 +1,24 @@
+<<<<<<< HEAD
+=======
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <sys/mman.h>
+>>>>>>> 60622f8 (Partie 2 - Serveur concurrent avec fork)
 #include "server.h"
+
+static int *connexions_actives;
+
+static void sigchld_handler(int sig) {
+    (void)sig;
+    while (waitpid(-1, NULL, WNOHANG) > 0)
+        (*connexions_actives)--;
+}
 
 int main(void) {
     int listenfd, connfd;
@@ -6,11 +26,27 @@ int main(void) {
     int opt = 1;
     int connection_count = 0;
 
+<<<<<<< HEAD
     // 1. Création de la socket
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         perror("socket");
         exit(EXIT_FAILURE);
     }
+=======
+    connexions_actives = mmap(NULL, sizeof(int),
+        PROT_READ | PROT_WRITE,
+        MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    *connexions_actives = 0;
+
+    struct sigaction sa;
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGCHLD, &sa, NULL);
+
+    listenfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (listenfd < 0) { perror("socket"); exit(1); }
+>>>>>>> 60622f8 (Partie 2 - Serveur concurrent avec fork)
 
     // 2. Configuration SO_REUSEADDR 
     if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
@@ -35,11 +71,16 @@ int main(void) {
         exit(EXIT_FAILURE);
     }
 
+<<<<<<< HEAD
     printf("Serveur itératif démarré sur le port %d...\n", PORT);
+=======
+    printf("Serveur fork démarré sur le port %d\n", PORT);
+>>>>>>> 60622f8 (Partie 2 - Serveur concurrent avec fork)
 
     // 5. Boucle principale 
     while (1) {
         connfd = accept(listenfd, NULL, NULL);
+<<<<<<< HEAD
         if (connfd < 0) {
             perror("accept");
             continue; // On continue malgré l'erreur
@@ -49,6 +90,22 @@ int main(void) {
         handle_client(connfd, connection_count);
         
         close(connfd); // IMPORTANT en itératif : fermer avant le prochain accept
+=======
+        if (connfd < 0) { perror("accept"); continue; }
+
+        pid_t pid = fork();
+        if (pid < 0) { perror("fork"); close(connfd); continue; }
+
+        if (pid == 0) {
+            close(listenfd);
+            (*connexions_actives)++;
+            handle_client_iter(connfd, ++conn_num);
+            close(connfd);
+            exit(0);
+        }
+        close(connfd);
+        printf("Connexions actives : %d\n", *connexions_actives);
+>>>>>>> 60622f8 (Partie 2 - Serveur concurrent avec fork)
     }
 
     close(listenfd);
