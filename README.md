@@ -70,3 +70,24 @@ connexions actives est partagé via mmap MAP_SHARED | MAP_ANONYMOUS.
 Les 8 clients sont servis en parallèle dans le désordre ce qui prouve
 le parallélisme. Le père (PID 9094) reste en écoute. Les fils se terminent
 rapidement. Aucun zombie détecté. Mémoire : 1660 KB.
+
+## Partie 3 — Serveur multi-threadé avec pthreads
+
+### Description
+Serveur concurrent basé sur pthreads. Chaque connexion est gérée par un
+thread indépendant. Un mutex protège le compteur connexions_actives.
+Pool de MAX_THREADS=16. pthread_detach() libère automatiquement les ressources.
+
+### Test Threads — 8 clients + VmRSS
+    VmRSS threads : 1720 kB
+    VmRSS fork    : 1660 kB
+    Les threads partagent la mémoire, les processus la dupliquent.
+
+### Test Pool — 17 clients
+    17 clients servis car connexions trop courtes pour saturer le pool.
+    Le message "Serveur saturé" apparaît uniquement si 16 threads
+    sont actifs simultanément.
+
+### Test Race Condition — 16 clients
+    Compteur stable après 16 connexions simultanées.
+    VmRSS : 1728 kB. Le mutex protège bien le compteur global.
