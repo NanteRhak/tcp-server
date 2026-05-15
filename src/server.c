@@ -6,18 +6,54 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+<<<<<<< HEAD
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
 >>>>>>> 60622f8 (Partie 2 - Serveur concurrent avec fork)
+=======
+#include <pthread.h>
+>>>>>>> fcd3f5b (Partie 3 - Serveur multi-threade avec pthreads)
 #include "server.h"
 
-static int *connexions_actives;
+#define MAX_THREADS 16
 
-static void sigchld_handler(int sig) {
-    (void)sig;
-    while (waitpid(-1, NULL, WNOHANG) > 0)
-        (*connexions_actives)--;
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static int connexions_actives = 0;
+
+void afficher_statut(void) {
+    pthread_mutex_lock(&mutex);
+    printf("Connexions actives : %d / %d\n", connexions_actives, MAX_THREADS);
+    pthread_mutex_unlock(&mutex);
+}
+
+void *handle_client_thread(void *arg) {
+    int connfd = *(int *)arg;
+    free(arg);
+
+    pthread_mutex_lock(&mutex);
+    connexions_actives++;
+    pthread_mutex_unlock(&mutex);
+
+    afficher_statut();
+
+    char buf[BUF_SIZE];
+    char response[BUF_SIZE + 64];
+    ssize_t n = read(connfd, buf, sizeof(buf) - 1);
+    if (n > 0) {
+        buf[n] = '\0';
+        static int conn_num = 0;
+        conn_num++;
+        snprintf(response, sizeof(response), "[Connexion #%d] Echo : %s", conn_num, buf);
+        write(connfd, response, strlen(response));
+    }
+    close(connfd);
+
+    pthread_mutex_lock(&mutex);
+    connexions_actives--;
+    pthread_mutex_unlock(&mutex);
+
+    return NULL;
 }
 
 int main(void) {
@@ -26,6 +62,7 @@ int main(void) {
     int opt = 1;
     int connection_count = 0;
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     // 1. Création de la socket
     if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
@@ -44,6 +81,8 @@ int main(void) {
     sa.sa_flags = SA_RESTART;
     sigaction(SIGCHLD, &sa, NULL);
 
+=======
+>>>>>>> fcd3f5b (Partie 3 - Serveur multi-threade avec pthreads)
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
     if (listenfd < 0) { perror("socket"); exit(1); }
 >>>>>>> 60622f8 (Partie 2 - Serveur concurrent avec fork)
@@ -72,10 +111,14 @@ int main(void) {
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     printf("Serveur itératif démarré sur le port %d...\n", PORT);
 =======
     printf("Serveur fork démarré sur le port %d\n", PORT);
 >>>>>>> 60622f8 (Partie 2 - Serveur concurrent avec fork)
+=======
+    printf("Serveur threads démarré sur le port %d\n", PORT);
+>>>>>>> fcd3f5b (Partie 3 - Serveur multi-threade avec pthreads)
 
     // 5. Boucle principale 
     while (1) {
@@ -93,19 +136,28 @@ int main(void) {
 =======
         if (connfd < 0) { perror("accept"); continue; }
 
-        pid_t pid = fork();
-        if (pid < 0) { perror("fork"); close(connfd); continue; }
-
-        if (pid == 0) {
-            close(listenfd);
-            (*connexions_actives)++;
-            handle_client_iter(connfd, ++conn_num);
+        pthread_mutex_lock(&mutex);
+        if (connexions_actives >= MAX_THREADS) {
+            pthread_mutex_unlock(&mutex);
+            char *msg = "Serveur saturé, réessayez plus tard.\n";
+            write(connfd, msg, strlen(msg));
             close(connfd);
-            exit(0);
+            continue;
         }
+<<<<<<< HEAD
         close(connfd);
         printf("Connexions actives : %d\n", *connexions_actives);
 >>>>>>> 60622f8 (Partie 2 - Serveur concurrent avec fork)
+=======
+        pthread_mutex_unlock(&mutex);
+
+        int *fd_copy = malloc(sizeof(int));
+        *fd_copy = connfd;
+
+        pthread_t tid;
+        pthread_create(&tid, NULL, handle_client_thread, fd_copy);
+        pthread_detach(tid);
+>>>>>>> fcd3f5b (Partie 3 - Serveur multi-threade avec pthreads)
     }
 
     close(listenfd);
