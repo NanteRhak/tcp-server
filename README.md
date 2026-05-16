@@ -91,3 +91,26 @@ Pool de MAX_THREADS=16. pthread_detach() libère automatiquement les ressources.
 ### Test Race Condition — 16 clients
     Compteur stable après 16 connexions simultanées.
     VmRSS : 1728 kB. Le mutex protège bien le compteur global.
+
+## Partie 4 — Multiplexage I/O avec select()
+
+### Description
+Serveur mono-thread qui surveille plusieurs clients simultanément avec select().
+Un tableau clients[] de FD_SETSIZE descripteurs initialisé à -1. Timeout de
+5 secondes. Aucun thread ni processus fils créé.
+
+### Test select() — client silencieux
+    Terminal 2 : nc 127.0.0.1 9999  (silencieux, ne tape rien)
+    Terminal 3 : nc 127.0.0.1 9999
+                 Bonjour
+                 Echo : Bonjour
+
+### Résultat
+Le client silencieux ne bloque pas le client actif. select() surveille
+tous les descripteurs simultanément. Descripteurs surveillés : 2.
+Contrairement à la partie 1, un client inactif ne bloque pas les autres.
+
+### Réponses select vs poll
+select() est limité à FD_SETSIZE=1024 descripteurs. poll() n'a pas cette
+limite. Pour 500 connexions poll() est préférable. Pour 10000+ connexions
+epoll (Linux) est recommandé avec une complexité O(1).
